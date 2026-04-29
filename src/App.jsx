@@ -103,7 +103,7 @@ export default function App() {
               onClick={(e) => {
                 e.stopPropagation()
                 const name = encodeURIComponent(store.상호)
-                const deeplink = `nmap://route/walk?dlat=${store.lat}&dlng=${store.lng}&dname=${name}&appname=com.dosirak.app`
+                const deeplink = `nmap://route/car?dlat=${store.lat}&dlng=${store.lng}&dname=${name}&appname=com.dosirak.app`
                 const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
                 const storeUrl = isIOS
                   ? 'https://apps.apple.com/kr/app/naver-map-navigation/id311867728'
