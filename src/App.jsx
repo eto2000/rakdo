@@ -189,17 +189,30 @@ export default function App() {
           </div>
           <div className="divider" />
           <div className="info-row">
-            <span className="label">주소</span>
-            <span className="value">{store.주소}</span>
-          </div>
-          <div className="info-row">
-            <span className="label">내용</span>
-            <span className="value note">{store.내용}</span>
-          </div>
-          <div className="info-row coords-row">
-            <span className="label">좌표</span>
-            <span className="value coords-value">
-              {store.lat}, {store.lng}
+            <span className="value note">
+              {store.내용.split('/').map((line, i, arr) => {
+                const trimmed = line.trim()
+                if (!trimmed) return i < arr.length - 1 ? <br key={i} /> : null
+                // 전화번호 패턴: 하이픈 있는 형식 또는 010/011/016/017/018/019로 시작하는 11자리
+                const phoneRegex = /(\d{2,4}-\d{3,4}-\d{4}|0\d{9,10})/g
+                const parts = []
+                let last = 0
+                let match
+                while ((match = phoneRegex.exec(trimmed)) !== null) {
+                  if (match.index > last) parts.push(trimmed.slice(last, match.index))
+                  const digits = match[0].replace(/-/g, '')
+                  parts.push(
+                    <a key={match.index} href={`tel:${digits}`} className="phone-link">
+                      {match[0]}
+                    </a>
+                  )
+                  last = match.index + match[0].length
+                }
+                if (last < trimmed.length) parts.push(trimmed.slice(last))
+                return (
+                  <span key={i}>{parts}{i < arr.length - 1 && <br />}</span>
+                )
+              })}
             </span>
           </div>
           <div className="links">
