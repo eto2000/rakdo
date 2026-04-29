@@ -190,7 +190,7 @@ export default function App() {
           <div className="divider" />
           <div className="info-row">
             <span className="value note">
-              {store.내용.split('/').map((line, i, arr) => {
+              {store.내용.split(/\/+/).map((line, i, arr) => {
                 const trimmed = line.trim()
                 if (!trimmed) return i < arr.length - 1 ? <br key={i} /> : null
                 // 전화번호 패턴: 하이픈 있는 형식 또는 010/011/016/017/018/019로 시작하는 11자리
