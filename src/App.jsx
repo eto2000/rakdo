@@ -98,15 +98,27 @@ export default function App() {
             <span className="value note">{store.내용}</span>
           </div>
           <div className="links">
-            <a
-              href={store.네이버지도url}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
               className="link-btn naver"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation()
+                const name = encodeURIComponent(store.상호)
+                const deeplink = `nmap://route/walk?dlat=${store.lat}&dlng=${store.lng}&dname=${name}&appname=com.dosirak.app`
+                const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+                const storeUrl = isIOS
+                  ? 'https://apps.apple.com/kr/app/naver-map-navigation/id311867728'
+                  : 'https://play.google.com/store/apps/details?id=com.nhn.android.nmap'
+                const start = Date.now()
+                window.location.href = deeplink
+                setTimeout(() => {
+                  if (Date.now() - start < 2000) {
+                    window.open(storeUrl, '_blank')
+                  }
+                }, 1500)
+              }}
             >
-              네이버지도
-            </a>
+              네이버지도 길찾기
+            </button>
             <button
               className="link-btn tmap"
               onClick={(e) => {
