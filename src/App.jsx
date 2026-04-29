@@ -151,6 +151,17 @@ export default function App() {
     setTimeout(() => closeEdit(), 1200)
   }
 
+  // 목록 모달 상태
+  const [listOpen, setListOpen] = useState(false)
+
+  const openList = () => setListOpen(true)
+  const closeList = () => setListOpen(false)
+
+  const goToFromList = (index) => {
+    goTo(index)
+    closeList()
+  }
+
   const store = stores[currentIndex]
 
   return (
@@ -158,6 +169,9 @@ export default function App() {
       {/* 헤더 */}
       <header className="header">
         <span className="header-count">{currentIndex + 1} / {stores.length}</span>
+        <button className="list-btn" onClick={openList} aria-label="목록 보기">
+          ☰
+        </button>
       </header>
 
       {/* 스와이프 영역 */}
@@ -302,6 +316,32 @@ export default function App() {
         </button>
       </nav>
       */}
+
+      {/* 목록 모달 */}
+      {listOpen && (
+        <div className="modal-overlay" onClick={closeList}>
+          <div className="list-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">전체 목록</h2>
+              <button className="modal-close" onClick={closeList} aria-label="닫기">✕</button>
+            </div>
+            <ul className="store-list">
+              {stores.map((s, i) => (
+                <li key={i}>
+                  <button
+                    className={`store-list-item ${i === currentIndex ? 'store-list-item-active' : ''}`}
+                    onClick={() => goToFromList(i)}
+                  >
+                    <span className="store-list-num">{i + 1}</span>
+                    <span className="store-list-name">{s.상호}</span>
+                    {i === currentIndex && <span className="store-list-current">●</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       {/* 좌표 수정 모달 */}
       {editOpen && (
