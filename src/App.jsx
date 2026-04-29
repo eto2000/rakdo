@@ -262,14 +262,14 @@ export default function App() {
         </div>
 
         {/* 스와이프 힌트 */}
-        <div className="swipe-hint">
+        {/* <div className="swipe-hint">
           {currentIndex > 0 && <span className="hint-arrow">←</span>}
           <span className="hint-text">스와이프</span>
           {currentIndex < stores.length - 1 && <span className="hint-arrow">→</span>}
-        </div>
+        </div> */}
       </div>
 
-      {/* 하단 네비게이션 */}
+      {/* 하단 네비게이션 (비활성화)
       <nav className="bottom-nav">
         <button
           className="nav-btn"
@@ -280,7 +280,7 @@ export default function App() {
           ‹
         </button>
 
-        {/* 인디케이터 도트 */}
+        인디케이터 도트
         <div className="dots">
           {stores.map((_, i) => (
             <button
@@ -301,6 +301,7 @@ export default function App() {
           ›
         </button>
       </nav>
+      */}
 
       {/* 좌표 수정 모달 */}
       {editOpen && (
