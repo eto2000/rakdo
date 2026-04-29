@@ -1,10 +1,16 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useRegisterSW } from 'virtual:pwa-register/react'
 import stores from './stores.json'
 import './App.css'
 
 const STORAGE_KEY = 'dosirak_current_index'
 
 export default function App() {
+  // PWA 업데이트 감지
+  const {
+    needRefresh: [needRefresh, setNeedRefresh],
+    updateServiceWorker,
+  } = useRegisterSW()
   const [currentIndex, setCurrentIndex] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEY)
     const parsed = parseInt(saved, 10)
@@ -61,6 +67,15 @@ export default function App() {
 
   return (
     <div className="app">
+      {/* PWA 업데이트 배너 */}
+      {needRefresh && (
+        <div className="update-banner">
+          <span>새 버전이 있습니다</span>
+          <button onClick={() => updateServiceWorker(true)}>업데이트</button>
+          <button onClick={() => setNeedRefresh(false)}>닫기</button>
+        </div>
+      )}
+
       {/* 헤더 */}
       <header className="header">
         <span className="header-count">{currentIndex + 1} / {stores.length}</span>
