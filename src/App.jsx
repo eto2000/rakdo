@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import stores from './stores.json'
+import initialStores from './stores.json'
 import './App.css'
 
 // Service Worker 등록
@@ -10,12 +10,48 @@ if ('serviceWorker' in navigator) {
 }
 
 const STORAGE_KEY = 'dosirak_current_index'
+const STORES_KEY = 'dosirak_stores'
+
+// 로컬스토리지에서 stores 불러오기 (최초 1회만 초기화)
+function loadStores() {
+  try {
+    const saved = localStorage.getItem(STORES_KEY)
+    if (saved) {
+      return JSON.parse(saved)
+    }
+  } catch {
+    // 파싱 실패 시 초기 데이터 사용
+  }
+  // 최초 실행: 소스 JSON을 로컬스토리지에 저장
+  localStorage.setItem(STORES_KEY, JSON.stringify(initialStores))
+  return initialStores
+}
+
+// 네이버 지도 URL에서 lat/lng 추출
+function extractCoordsFromNaverUrl(url) {
+  // 형식 1: map.naver.com/p/?lat=37.xxx&lng=127.xxx
+  const latMatch = url.match(/[?&]lat=([\d.]+)/)
+  const lngMatch = url.match(/[?&]lng=([\d.]+)/)
+  if (latMatch && lngMatch) {
+    return { lat: parseFloat(latMatch[1]), lng: parseFloat(lngMatch[1]) }
+  }
+
+  // 형식 2: map.naver.com/p/search/.../37.xxx,127.xxx
+  const coordsMatch = url.match(/([\d]{2}\.[\d]+),([\d]{3}\.[\d]+)/)
+  if (coordsMatch) {
+    return { lat: parseFloat(coordsMatch[1]), lng: parseFloat(coordsMatch[2]) }
+  }
+
+  return null
+}
 
 export default function App() {
+  const [stores, setStores] = useState(() => loadStores())
+
   const [currentIndex, setCurrentIndex] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEY)
     const parsed = parseInt(saved, 10)
-    if (!isNaN(parsed) && parsed >= 0 && parsed < stores.length) {
+    if (!isNaN(parsed) && parsed >= 0 && parsed < initialStores.length) {
       return parsed
     }
     return 0
@@ -28,17 +64,28 @@ export default function App() {
   const containerRef = useRef(null)
   const SWIPE_THRESHOLD = 60
 
+  // 수정 모달 상태
+  const [editOpen, setEditOpen] = useState(false)
+  const [editUrl, setEditUrl] = useState('')
+  const [editError, setEditError] = useState('')
+  const [editSuccess, setEditSuccess] = useState(false)
+
   // 인덱스 변경 시 로컬스토리지 저장
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, String(currentIndex))
   }, [currentIndex])
+
+  // stores 변경 시 로컬스토리지 저장
+  useEffect(() => {
+    localStorage.setItem(STORES_KEY, JSON.stringify(stores))
+  }, [stores])
 
   const goTo = useCallback((index) => {
     if (index < 0 || index >= stores.length || animating) return
     setAnimating(true)
     setCurrentIndex(index)
     setTimeout(() => setAnimating(false), 300)
-  }, [animating])
+  }, [animating, stores.length])
 
   const handlePointerDown = (e) => {
     if (animating) return
@@ -62,6 +109,46 @@ export default function App() {
       goTo(currentIndex - 1)
     }
     setOffsetX(0)
+  }
+
+  const openEdit = (e) => {
+    e.stopPropagation()
+    setEditUrl('')
+    setEditError('')
+    setEditSuccess(false)
+    setEditOpen(true)
+  }
+
+  const closeEdit = () => {
+    setEditOpen(false)
+    setEditError('')
+    setEditSuccess(false)
+  }
+
+  const handleEditSave = () => {
+    setEditError('')
+    setEditSuccess(false)
+
+    const trimmed = editUrl.trim()
+    if (!trimmed) {
+      setEditError('URL을 입력해주세요.')
+      return
+    }
+
+    const coords = extractCoordsFromNaverUrl(trimmed)
+    if (!coords) {
+      setEditError('좌표를 찾을 수 없습니다.\n네이버 지도 URL에 lat/lng 파라미터가 포함되어야 합니다.\n예: https://map.naver.com/p/?lat=37.5&lng=127.1&zoom=17')
+      return
+    }
+
+    const updated = stores.map((s, i) =>
+      i === currentIndex
+        ? { ...s, lat: coords.lat, lng: coords.lng, 좌표url: trimmed }
+        : s
+    )
+    setStores(updated)
+    setEditSuccess(true)
+    setTimeout(() => closeEdit(), 1200)
   }
 
   const store = stores[currentIndex]
@@ -94,7 +181,12 @@ export default function App() {
             transition: dragging ? 'none' : 'transform 0.3s ease',
           }}
         >
-          <h1 className="store-name">{store.상호}</h1>
+          <div className="card-header-row">
+            <h1 className="store-name">{store.상호}</h1>
+            <button className="edit-btn" onClick={openEdit} aria-label="좌표 수정">
+              수정
+            </button>
+          </div>
           <div className="divider" />
           <div className="info-row">
             <span className="label">주소</span>
@@ -103,6 +195,12 @@ export default function App() {
           <div className="info-row">
             <span className="label">내용</span>
             <span className="value note">{store.내용}</span>
+          </div>
+          <div className="info-row coords-row">
+            <span className="label">좌표</span>
+            <span className="value coords-value">
+              {store.lat}, {store.lng}
+            </span>
           </div>
           <div className="links">
             <button
@@ -132,7 +230,6 @@ export default function App() {
                 e.stopPropagation()
                 const name = encodeURIComponent(store.상호)
                 const deeplink = `tmap://route?goalx=${store.lng}&goaly=${store.lat}&goalname=${name}&appKey=tmap`
-                // 딥링크 시도 후 앱 미설치 시 스토어로 폴백
                 const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
                 const storeUrl = isIOS
                   ? 'https://apps.apple.com/kr/app/tmap/id431589174'
@@ -191,6 +288,48 @@ export default function App() {
           ›
         </button>
       </nav>
+
+      {/* 좌표 수정 모달 */}
+      {editOpen && (
+        <div className="modal-overlay" onClick={closeEdit}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">좌표 수정</h2>
+              <button className="modal-close" onClick={closeEdit} aria-label="닫기">✕</button>
+            </div>
+            <p className="modal-store-name">{store.상호}</p>
+            <p className="modal-desc">
+              네이버 지도에서 위치를 찾은 후 URL을 복사해 붙여넣으세요.<br />
+              <span className="modal-desc-sub">예: https://map.naver.com/p/?lat=37.5&amp;lng=127.1&amp;zoom=17</span>
+            </p>
+            <div className="modal-current">
+              <span className="modal-current-label">현재 좌표</span>
+              <span className="modal-current-value">{store.lat}, {store.lng}</span>
+            </div>
+            <textarea
+              className="modal-input"
+              placeholder="네이버 지도 URL을 붙여넣으세요"
+              value={editUrl}
+              onChange={(e) => {
+                setEditUrl(e.target.value)
+                setEditError('')
+              }}
+              rows={3}
+              autoFocus
+            />
+            {editError && (
+              <p className="modal-error">{editError}</p>
+            )}
+            {editSuccess && (
+              <p className="modal-success">✓ 좌표가 업데이트되었습니다!</p>
+            )}
+            <div className="modal-actions">
+              <button className="modal-btn cancel" onClick={closeEdit}>취소</button>
+              <button className="modal-btn save" onClick={handleEditSave}>저장</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
