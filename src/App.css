@@ -216,6 +216,13 @@
   font-weight: 500;
 }
 
+.value.extra {
+  font-size: 20px;
+  line-height: 1.6;
+  color: #e53e3e;
+  font-weight: 600;
+}
+
 .phone-link {
   color: #1e90ff;
   text-decoration: none;

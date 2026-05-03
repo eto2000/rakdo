@@ -144,6 +144,11 @@ export default function App() {
               })}
             </span>
           </div>
+          {store.추가 && (
+            <div className="info-row">
+              <span className="value extra">{store.추가}</span>
+            </div>
+          )}
           <div className="links">
             <a
               className="link-btn naver"
