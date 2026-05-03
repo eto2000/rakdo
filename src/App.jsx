@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import initialStores from './stores.json'
 import './App.css'
 
 // Service Worker 등록
@@ -10,16 +9,77 @@ if ('serviceWorker' in navigator) {
 }
 
 const STORAGE_KEY = 'dosirak_current_index'
+const STORES_KEY = 'dosirak_stores'
+
+function loadStoresFromStorage() {
+  try {
+    const saved = localStorage.getItem(STORES_KEY)
+    if (saved) return JSON.parse(saved)
+  } catch {}
+  return null
+}
+
+// JSON 입력 화면
+function JsonInputScreen({ onSave, onCancel }) {
+  const [text, setText] = useState('')
+  const [error, setError] = useState('')
+
+  const handleSave = () => {
+    setError('')
+    const trimmed = text.trim()
+    if (!trimmed) {
+      setError('JSON을 입력해주세요.')
+      return
+    }
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        setError('배열 형식의 JSON이어야 합니다.')
+        return
+      }
+      localStorage.setItem(STORES_KEY, JSON.stringify(parsed))
+      onSave(parsed)
+    } catch {
+      setError('JSON 형식이 올바르지 않습니다.')
+    }
+  }
+
+  return (
+    <div className="app">
+      <header className="header">
+        <span className="header-title">도시락 데이터 입력</span>
+        {onCancel && (
+          <button className="modal-close" onClick={onCancel} aria-label="취소">✕</button>
+        )}
+      </header>
+      <div className="json-input-screen">
+        <p className="json-input-desc">stores.json 내용을 붙여넣으세요.</p>
+        <textarea
+          className="json-textarea"
+          value={text}
+          onChange={(e) => { setText(e.target.value); setError('') }}
+          placeholder={'[\n  {\n    "상호": "...",\n    "내용": "...",\n    "주소": "..."\n  }\n]'}
+          spellCheck={false}
+        />
+        {error && <p className="json-error">{error}</p>}
+        <div className="json-actions">
+          {onCancel && (
+            <button className="json-cancel-btn" onClick={onCancel}>취소</button>
+          )}
+          <button className="json-save-btn" onClick={handleSave}>저장</button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function App() {
-  const stores = initialStores
-
+  const [stores, setStores] = useState(() => loadStoresFromStorage())
   const [currentIndex, setCurrentIndex] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEY)
     const parsed = parseInt(saved, 10)
-    if (!isNaN(parsed) && parsed >= 0 && parsed < initialStores.length) {
-      return parsed
-    }
+    const data = loadStoresFromStorage()
+    if (data && !isNaN(parsed) && parsed >= 0 && parsed < data.length) return parsed
     return 0
   })
 
@@ -30,20 +90,19 @@ export default function App() {
   const containerRef = useRef(null)
   const SWIPE_THRESHOLD = 60
 
-  // 목록 모달 상태
   const [listOpen, setListOpen] = useState(false)
+  const [jsonInputOpen, setJsonInputOpen] = useState(false)
 
-  // 인덱스 변경 시 로컬스토리지 저장
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, String(currentIndex))
   }, [currentIndex])
 
   const goTo = useCallback((index) => {
-    if (index < 0 || index >= stores.length || animating) return
+    if (!stores || index < 0 || index >= stores.length || animating) return
     setAnimating(true)
     setCurrentIndex(index)
     setTimeout(() => setAnimating(false), 300)
-  }, [animating, stores.length])
+  }, [animating, stores])
 
   const handlePointerDown = (e) => {
     if (animating) return
@@ -61,20 +120,35 @@ export default function App() {
   const handlePointerUp = () => {
     if (!dragging) return
     setDragging(false)
-    if (offsetX < -SWIPE_THRESHOLD && currentIndex < stores.length - 1) {
-      goTo(currentIndex + 1)
-    } else if (offsetX > SWIPE_THRESHOLD && currentIndex > 0) {
-      goTo(currentIndex - 1)
-    }
+    if (offsetX < -SWIPE_THRESHOLD && currentIndex < stores.length - 1) goTo(currentIndex + 1)
+    else if (offsetX > SWIPE_THRESHOLD && currentIndex > 0) goTo(currentIndex - 1)
     setOffsetX(0)
   }
 
   const openList = () => setListOpen(true)
   const closeList = () => setListOpen(false)
+  const goToFromList = (index) => { goTo(index); closeList() }
 
-  const goToFromList = (index) => {
-    goTo(index)
-    closeList()
+  const handleJsonSave = (parsed) => {
+    setStores(parsed)
+    setCurrentIndex(0)
+    setJsonInputOpen(false)
+  }
+
+  const handleJsonUpdate = (parsed) => {
+    setStores(parsed)
+    setCurrentIndex(0)
+    setJsonInputOpen(false)
+  }
+
+  // 데이터 없으면 입력 화면
+  if (!stores) {
+    return <JsonInputScreen onSave={handleJsonSave} />
+  }
+
+  // JSON 입력 모달 (데이터 교체용)
+  if (jsonInputOpen) {
+    return <JsonInputScreen onSave={handleJsonUpdate} onCancel={() => setJsonInputOpen(false)} />
   }
 
   const store = stores[currentIndex]
@@ -84,9 +158,9 @@ export default function App() {
       {/* 헤더 */}
       <header className="header">
         <span className="header-count">{currentIndex + 1} / {stores.length}</span>
-        <button className="list-btn" onClick={openList} aria-label="목록 보기">
-          ☰
-        </button>
+        <div className="header-actions">
+          <button className="list-btn" onClick={openList} aria-label="목록 보기">☰</button>
+        </div>
       </header>
 
       {/* 스와이프 영역 */}
@@ -122,7 +196,6 @@ export default function App() {
               {store.내용.split(/\/+/).map((line, i, arr) => {
                 const trimmed = line.trim()
                 if (!trimmed) return i < arr.length - 1 ? <br key={i} /> : null
-                // 전화번호 패턴: 하이픈 있는 형식 또는 010/011/016/017/018/019로 시작하는 11자리
                 const phoneRegex = /(\d{2,4}-\d{3,4}-\d{4}|0\d{9,10})/g
                 const parts = []
                 let last = 0
@@ -138,9 +211,7 @@ export default function App() {
                   last = match.index + match[0].length
                 }
                 if (last < trimmed.length) parts.push(trimmed.slice(last))
-                return (
-                  <span key={i}>{parts}{i < arr.length - 1 && <br />}</span>
-                )
+                return <span key={i}>{parts}{i < arr.length - 1 && <br />}</span>
               })}
             </span>
           </div>
@@ -166,48 +237,7 @@ export default function App() {
             </a>
           </div>
         </div>
-
-        {/* 스와이프 힌트 */}
-        {/* <div className="swipe-hint">
-          {currentIndex > 0 && <span className="hint-arrow">←</span>}
-          <span className="hint-text">스와이프</span>
-          {currentIndex < stores.length - 1 && <span className="hint-arrow">→</span>}
-        </div> */}
       </div>
-
-      {/* 하단 네비게이션 (비활성화)
-      <nav className="bottom-nav">
-        <button
-          className="nav-btn"
-          onClick={() => goTo(currentIndex - 1)}
-          disabled={currentIndex === 0}
-          aria-label="이전"
-        >
-          ‹
-        </button>
-
-        인디케이터 도트
-        <div className="dots">
-          {stores.map((_, i) => (
-            <button
-              key={i}
-              className={`dot ${i === currentIndex ? 'dot-active' : ''}`}
-              onClick={() => goTo(i)}
-              aria-label={`${i + 1}번째 항목`}
-            />
-          ))}
-        </div>
-
-        <button
-          className="nav-btn"
-          onClick={() => goTo(currentIndex + 1)}
-          disabled={currentIndex === stores.length - 1}
-          aria-label="다음"
-        >
-          ›
-        </button>
-      </nav>
-      */}
 
       {/* 목록 모달 */}
       {listOpen && (
@@ -231,6 +261,11 @@ export default function App() {
                 </li>
               ))}
             </ul>
+            <div className="list-footer">
+              <button className="json-update-btn" onClick={() => { closeList(); setJsonInputOpen(true) }}>
+                데이터 교체
+              </button>
+            </div>
           </div>
         </div>
       )}
