@@ -140,6 +140,20 @@
   letter-spacing: -0.5px;
   word-break: keep-all;
   flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.card-badge {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  background: #1e90ff;
+  letter-spacing: 0;
+  padding: 2px 8px;
+  border-radius: 6px;
+  line-height: 1.4;
 }
 
 .edit-btn {
