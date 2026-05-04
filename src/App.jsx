@@ -151,12 +151,14 @@ export default function App() {
     return <JsonInputScreen onSave={handleJsonUpdate} onCancel={() => setJsonInputOpen(false)} />
   }
 
-  const store = stores[currentIndex]
+  const store = stores[currentIndex] ?? stores[0]
+  if (!store) return null
 
   return (
     <div className="app">
       {/* 헤더 */}
       <header className="header">
+        <button className="home-btn" onClick={() => goTo(0)} aria-label="처음으로">⌂</button>
         <span className="header-count">{currentIndex + 1} / {stores.length}</span>
         <div className="header-actions">
           <button className="list-btn" onClick={openList} aria-label="목록 보기">☰</button>
@@ -193,7 +195,7 @@ export default function App() {
           <div className="divider" />
           <div className="info-row">
             <span className="value note">
-              {store.내용.split(/\/+/).map((line, i, arr) => {
+              {(store.내용 ?? '').split(/\/+/).map((line, i, arr) => {
                 const trimmed = line.trim()
                 if (!trimmed) return i < arr.length - 1 ? <br key={i} /> : null
                 const phoneRegex = /(\d{2,4}-\d{3,4}-\d{4}|0\d{9,10})/g
