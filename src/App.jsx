@@ -85,9 +85,11 @@ export default function App() {
 
   const [dragging, setDragging] = useState(false)
   const [startX, setStartX] = useState(0)
+  const [startY, setStartY] = useState(0)
   const [offsetX, setOffsetX] = useState(0)
   const [animating, setAnimating] = useState(false)
   const containerRef = useRef(null)
+  const draggingRef = useRef(false)
   const SWIPE_THRESHOLD = 60
 
   const [listOpen, setListOpen] = useState(false)
@@ -96,6 +98,21 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, String(currentIndex))
   }, [currentIndex])
+
+  // 수평 스와이프 시 상하 바운싱 방지 (passive: false 필요)
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const onTouchMove = (e) => {
+      if (!draggingRef.current) return
+      const touch = e.touches?.[0]
+      if (!touch) return
+      // 수평 이동이 수직보다 크면 스크롤 막기
+      e.preventDefault()
+    }
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
+    return () => el.removeEventListener('touchmove', onTouchMove)
+  }, [])
 
   const goTo = useCallback((index) => {
     if (!stores || index < 0 || index >= stores.length || animating) return
@@ -106,8 +123,10 @@ export default function App() {
 
   const handlePointerDown = (e) => {
     if (animating) return
+    draggingRef.current = true
     setDragging(true)
     setStartX(e.clientX ?? e.touches?.[0]?.clientX ?? 0)
+    setStartY(e.clientY ?? e.touches?.[0]?.clientY ?? 0)
     setOffsetX(0)
   }
 
@@ -119,6 +138,7 @@ export default function App() {
 
   const handlePointerUp = () => {
     if (!dragging) return
+    draggingRef.current = false
     setDragging(false)
     if (offsetX < -SWIPE_THRESHOLD && currentIndex < stores.length - 1) goTo(currentIndex + 1)
     else if (offsetX > SWIPE_THRESHOLD && currentIndex > 0) goTo(currentIndex - 1)
