@@ -20,8 +20,10 @@ function loadStoresFromStorage() {
 }
 
 // JSON 입력 화면
-function JsonInputScreen({ onSave, onCancel }) {
-  const [text, setText] = useState('')
+function JsonInputScreen({ onSave, onCancel, initialData }) {
+  const [text, setText] = useState(() =>
+    initialData ? JSON.stringify(initialData, null, 2) : ''
+  )
   const [error, setError] = useState('')
 
   const handleSave = () => {
@@ -168,7 +170,7 @@ export default function App() {
 
   // JSON 입력 모달 (데이터 교체용)
   if (jsonInputOpen) {
-    return <JsonInputScreen onSave={handleJsonUpdate} onCancel={() => setJsonInputOpen(false)} />
+    return <JsonInputScreen onSave={handleJsonUpdate} onCancel={() => setJsonInputOpen(false)} initialData={stores} />
   }
 
   const store = stores[currentIndex] ?? stores[0]
