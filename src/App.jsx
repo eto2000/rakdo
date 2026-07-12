@@ -10,6 +10,7 @@ if ('serviceWorker' in navigator) {
 
 const STORAGE_KEY = 'dosirak_current_index'
 const STORES_KEY = 'dosirak_stores'
+const SHARE_PARAM = 'd'
 
 function loadStoresFromStorage() {
   try {
@@ -17,6 +18,102 @@ function loadStoresFromStorage() {
     if (saved) return JSON.parse(saved)
   } catch {}
   return null
+}
+
+// URL-safe base64 인코딩 (한글 등 유니코드 안전)
+function encodeData(data) {
+  try {
+    const json = JSON.stringify(data)
+    const bytes = new TextEncoder().encode(json)
+    let binary = ''
+    bytes.forEach((b) => { binary += String.fromCharCode(b) })
+    const base64 = btoa(binary)
+    // URL-safe: +→-, /→_, =제거
+    return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  } catch {
+    return null
+  }
+}
+
+// URL-safe base64 디코딩 (한글 등 유니코드 안전)
+function decodeData(str) {
+  try {
+    // URL-safe 복원 + 패딩
+    const base64 = str.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4)
+    const binary = atob(padded)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i)
+    }
+    const json = new TextDecoder().decode(bytes)
+    return JSON.parse(json)
+  } catch {
+    return null
+  }
+}
+
+// 현재 URL에서 공유 파라미터 파싱
+function parseSharedData() {
+  try {
+    const params = new URLSearchParams(window.location.search)
+    const raw = params.get(SHARE_PARAM)
+    if (!raw) return null
+    const data = decodeData(raw)
+    if (!Array.isArray(data) || data.length === 0) return null
+    return data
+  } catch {
+    return null
+  }
+}
+
+// 공유 URL 생성
+function buildShareUrl(data) {
+  const encoded = encodeData(data)
+  if (!encoded) return null
+  const url = new URL(window.location.href)
+  url.search = ''
+  url.hash = ''
+  url.searchParams.set(SHARE_PARAM, encoded)
+  return url.toString()
+}
+
+// URL에서 공유 파라미터 제거
+function clearShareParam() {
+  const url = new URL(window.location.href)
+  url.searchParams.delete(SHARE_PARAM)
+  window.history.replaceState({}, '', url.toString())
+}
+
+// 공유 수신 확인 모달
+function ShareImportModal({ data, onSave, onDismiss }) {
+  return (
+    <div className="modal-overlay" onClick={onDismiss}>
+      <div className="modal share-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2 className="modal-title">공유 데이터 수신</h2>
+          <button className="modal-close" onClick={onDismiss} aria-label="닫기">✕</button>
+        </div>
+        <p className="share-modal-desc">
+          공유된 도시락 데이터를 받았습니다.<br />
+          <span className="share-modal-count">{data.length}개</span> 항목이 포함되어 있습니다.
+        </p>
+        <ul className="share-preview-list">
+          {data.slice(0, 5).map((s, i) => (
+            <li key={i} className="share-preview-item">{s.상호}</li>
+          ))}
+          {data.length > 5 && (
+            <li className="share-preview-more">... 외 {data.length - 5}개</li>
+          )}
+        </ul>
+        <p className="share-modal-warn">저장하면 현재 데이터가 교체됩니다.</p>
+        <div className="modal-actions">
+          <button className="modal-btn cancel" onClick={onDismiss}>무시</button>
+          <button className="modal-btn save" onClick={() => onSave(data)}>저장</button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // JSON 입력 화면
@@ -96,6 +193,49 @@ export default function App() {
 
   const [listOpen, setListOpen] = useState(false)
   const [jsonInputOpen, setJsonInputOpen] = useState(false)
+  const [shareToast, setShareToast] = useState(false) // 공유 URL 복사 완료 토스트
+  const [sharedData, setSharedData] = useState(() => parseSharedData()) // 수신된 공유 데이터
+
+  // 앱 로드 시 공유 파라미터가 있으면 URL을 즉시 정리 (이미 파싱했으므로)
+  useEffect(() => {
+    if (sharedData) {
+      clearShareParam()
+    }
+  }, [])
+
+  // 공유 URL 생성 및 클립보드 복사
+  const handleShare = useCallback(() => {
+    if (!stores) return
+    const url = buildShareUrl(stores)
+    if (!url) return
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => {
+        setShareToast(true)
+        setTimeout(() => setShareToast(false), 2500)
+      })
+    } else {
+      // fallback
+      const el = document.createElement('textarea')
+      el.value = url
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand('copy')
+      document.body.removeChild(el)
+      setShareToast(true)
+      setTimeout(() => setShareToast(false), 2500)
+    }
+  }, [stores])
+
+  const handleSharedSave = (data) => {
+    localStorage.setItem(STORES_KEY, JSON.stringify(data))
+    setStores(data)
+    setCurrentIndex(0)
+    setSharedData(null)
+  }
+
+  const handleSharedDismiss = () => {
+    setSharedData(null)
+  }
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, String(currentIndex))
@@ -178,11 +318,26 @@ export default function App() {
 
   return (
     <div className="app">
+      {/* 수신된 공유 데이터 저장 확인 모달 */}
+      {sharedData && (
+        <ShareImportModal
+          data={sharedData}
+          onSave={handleSharedSave}
+          onDismiss={handleSharedDismiss}
+        />
+      )}
+
+      {/* 공유 URL 복사 완료 토스트 */}
+      {shareToast && (
+        <div className="share-toast">공유 URL이 클립보드에 복사되었습니다</div>
+      )}
+
       {/* 헤더 */}
       <header className="header">
         <button className="home-btn" onClick={() => goTo(0)} aria-label="처음으로">⌂</button>
         <span className="header-count">{currentIndex + 1} / {stores.length}</span>
         <div className="header-actions">
+          <button className="share-btn" onClick={handleShare} aria-label="공유">⬆</button>
           <button className="list-btn" onClick={openList} aria-label="목록 보기">☰</button>
         </div>
       </header>
